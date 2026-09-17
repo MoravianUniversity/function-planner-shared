@@ -23,8 +23,8 @@ export const updateCourseSchema = z.object({
 
 export const addRosterMemberSchema = z.object({
   email: z.email(),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
+  firstName: z.string().optional().default(''),
+  lastName: z.string().optional().default(''),
   role: roleSchema,
   instructorAssignment: z.enum(['CURRENT_COURSE', 'NEW_COURSE']).optional(),
   newCourse: z
@@ -63,8 +63,8 @@ export const startStudentPlanSchema = z.object({
 });
 
 export const csvStudentSchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
+  firstName: z.string().optional().default(''),
+  lastName: z.string().optional().default(''),
   email: z.email()
 });
 
