@@ -394,9 +394,13 @@ export function resolveFunctionReadOnly(
     }
   }
 
-  const normalizedFields = normalizeCallReadOnlyFields([...fields]);
+  let normalizedFields = normalizeCallReadOnlyFields([...fields]);
   if (normalizedFields.length === 0 && params.length === 0 && returns.length === 0) {
     return false;
+  }
+  // Name-keyed rules: matching always locks name so the rule cannot be escaped by rename.
+  if (!normalizedFields.includes('name')) {
+    normalizedFields = ['name', ...normalizedFields];
   }
   return { fields: normalizedFields, params, returns };
 }

@@ -223,6 +223,21 @@ export function parsePlannerModel(content: string | null | undefined): PlannerMo
   }
 }
 
+/** Function keys present in a planner model (stringified). */
+export function templateFunctionKeysFromModel(model: PlannerModel): string[] {
+  return (model.functions || [])
+    .map((fn) => (fn.key != null ? String(fn.key) : ''))
+    .filter((key) => key.length > 0);
+}
+
+/** Attach frozen template function keys for PlanConfig read-only gating. */
+export function withTemplateFunctionKeys(model: PlannerModel): PlannerModel {
+  return {
+    ...model,
+    templateFunctionKeys: templateFunctionKeysFromModel(model)
+  };
+}
+
 /**
  * Merge base template model into an existing solution model.
  * Template owns structure (function keys + call edges). Student-readonly fields
@@ -234,7 +249,7 @@ export function mergeBaseIntoSolution(
   config: Pick<PlanConfig, 'moduleReadOnly' | 'functionReadOnly'>
 ): PlannerModel {
   if (!solution) {
-    return structuredClone(base);
+    return withTemplateFunctionKeys(structuredClone(base));
   }
 
   const solutionByKey = new Map<string, PlannerFunction>();
@@ -326,7 +341,8 @@ export function mergeBaseIntoSolution(
   }
 
   // Non-module layout/model keys already come from structuredClone(base).
-  return merged;
+  // Always freeze base keys for student/solution read-only provenance.
+  return withTemplateFunctionKeys(merged);
 }
 
 /** Serialize a planner model to the JSON string stored in content / solutionContent. */

@@ -9,7 +9,11 @@ import {
   isReturnFacetReadOnly,
   isFunctionFieldLocked
 } from './planConfig.js';
-import { mergeBaseIntoSolution, type PlannerModel } from './solutionMerge.js';
+import {
+  mergeBaseIntoSolution,
+  withTemplateFunctionKeys,
+  type PlannerModel
+} from './solutionMerge.js';
 
 describe('normalizeCallReadOnlyFields', () => {
   it('collapses into+outOf to calls', () => {
@@ -71,6 +75,35 @@ describe('resolveFunctionReadOnly', () => {
     });
     expect(isFunctionFieldLocked('params', policy)).toBe(true);
     expect(isParamStructureReadOnly(policy)).toBe(true);
+  });
+
+  it('always locks name when any rule matches', () => {
+    const policy = resolveFunctionReadOnly('helper', [
+      { for: '^helper$', fields: ['desc'] }
+    ]);
+    expect(policy).toEqual({
+      fields: ['name', 'desc'],
+      params: [],
+      returns: []
+    });
+    expect(isFunctionFieldLocked('name', policy)).toBe(true);
+    expect(isFunctionFieldLocked('desc', policy)).toBe(true);
+  });
+
+  it('forces name when only param locks match', () => {
+    const policy = resolveFunctionReadOnly('helper', [
+      {
+        for: '^helper$',
+        fields: ['params'],
+        paramLock: { for: '^n$', facets: ['name', 'type'] }
+      }
+    ]);
+    expect(policy).not.toBe(false);
+    if (policy === false || policy === true) {
+      throw new Error('expected structured policy');
+    }
+    expect(policy.fields).toContain('name');
+    expect(isFunctionFieldLocked('name', policy)).toBe(true);
   });
 
   it('applies param facets and for regex', () => {
@@ -181,5 +214,16 @@ describe('mergeBaseIntoSolution param/return facets', () => {
       ]
     });
     expect(merged.functions[0].returns).toEqual([{ type: 'bool', desc: 'student ret' }]);
+  });
+
+  it('records templateFunctionKeys from base keys', () => {
+    const merged = mergeBaseIntoSolution(base, solution, {
+      moduleReadOnly: false,
+      functionReadOnly: []
+    });
+    expect(merged.templateFunctionKeys).toEqual(['1']);
+    expect(withTemplateFunctionKeys(base).templateFunctionKeys).toEqual(['1']);
+    expect(mergeBaseIntoSolution(base, null, { moduleReadOnly: false, functionReadOnly: [] })
+      .templateFunctionKeys).toEqual(['1']);
   });
 });
