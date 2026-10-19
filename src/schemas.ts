@@ -57,6 +57,10 @@ export const updateBasePlanSchema = z.object({
   settings: z.any().nullable().optional()
 });
 
+export const submitBasePlanPasscodeSchema = z.object({
+  passcode: z.string()
+});
+
 export const startStudentPlanSchema = z.object({
   basePlanId: z.string().min(1),
   memberUserIds: z.array(z.string().min(1)).default([])

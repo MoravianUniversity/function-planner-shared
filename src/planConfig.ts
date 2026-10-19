@@ -89,6 +89,8 @@ const returnLockSchema = z.object({
 
 export const planConfigSchema = z.object({
   title: z.string().optional(),
+  /** Trimmed student passcode. Empty or omitted means the plan is not gated. */
+  passcode: z.string().optional(),
   allowedTypes: z.array(z.string()).optional(),
   minFunctions: z.number().nonnegative().optional(),
   minTestable: z.number().nonnegative().optional(),
@@ -126,6 +128,7 @@ export const planConfigSchema = z.object({
 
 export type PlanConfig = {
   title: string;
+  passcode: string;
   allowedTypes: string[];
   minFunctions: number;
   minTestable: number;
@@ -150,6 +153,7 @@ export type PlanConfig = {
 
 export const DEFAULT_PLAN_CONFIG: PlanConfig = {
   title: '',
+  passcode: '',
   allowedTypes: ['int', 'float', 'str', 'bool', 'list', 'tuple', 'dict', 'set'],
   minFunctions: 1,
   minTestable: 0,
@@ -584,6 +588,38 @@ function toPatternString(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
 }
 
+/** Trimmed passcode from base-plan settings. Empty means no passcode is configured. */
+export function passcodeFromSettings(raw: unknown): string {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return '';
+  }
+  const passcode = (raw as Record<string, unknown>).passcode;
+  return typeof passcode === 'string' ? passcode.trim() : '';
+}
+
+/** True only when a passcode goes from unset to set. Changes and clears are not additions. */
+export function passcodeWasAdded(previous: unknown, next: unknown): boolean {
+  return passcodeFromSettings(previous) === '' && passcodeFromSettings(next) !== '';
+}
+
+/** Drop `passcode` so student-facing payloads cannot reveal it. */
+export function redactPasscodeFromSettings(raw: unknown): unknown {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return raw ?? null;
+  }
+  const record = raw as Record<string, unknown>;
+  if (!Object.prototype.hasOwnProperty.call(record, 'passcode')) {
+    return raw;
+  }
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key !== 'passcode') {
+      next[key] = value;
+    }
+  }
+  return Object.keys(next).length === 0 ? null : next;
+}
+
 /** Normalize sparse BasePlan.settings JSON into a full PlanConfig with defaults. */
 export function parsePlanConfig(raw: unknown): PlanConfig {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -593,6 +629,7 @@ export function parsePlanConfig(raw: unknown): PlanConfig {
   const value = raw as Record<string, unknown>;
   return {
     title: typeof value.title === 'string' ? value.title : DEFAULT_PLAN_CONFIG.title,
+    passcode: passcodeFromSettings(value),
     allowedTypes: toStringArray(value.allowedTypes, DEFAULT_PLAN_CONFIG.allowedTypes),
     minFunctions: toNonNegativeNumber(value.minFunctions, DEFAULT_PLAN_CONFIG.minFunctions),
     minTestable: toNonNegativeNumber(value.minTestable, DEFAULT_PLAN_CONFIG.minTestable),

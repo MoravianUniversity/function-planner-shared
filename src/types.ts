@@ -36,7 +36,7 @@ export interface StudentPlanSummary {
 /** Result of GET /api/plans/entry/:identifier — how to render /plans/:identifier for the current user. */
 export type PlanEntryResponse =
   | { kind: 'student'; studentPlanId: string; title: string; basePlanId: string }
-  | { kind: 'start-published'; basePlanId: string; title: string }
+  | { kind: 'start-published'; basePlanId: string; title: string; passcodeRequired: boolean }
   | { kind: 'staff-base'; basePlanId: string; title: string };
 
 export interface PlanMemberInfo {
