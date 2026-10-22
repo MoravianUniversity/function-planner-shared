@@ -26,6 +26,8 @@ export type PlanDifference = {
   message: string;
   expected?: unknown;
   actual?: unknown;
+  /** For a suspected rename: how many individual differences were folded into this one. */
+  collapsed?: number;
 };
 
 export type PlanCompareReport = {
@@ -58,6 +60,85 @@ export function comparePlans(
 ): PlanCompareReport {
   const compare = normalizeCompare(options.compare);
   const active = expandCompare(compare);
+
+  let differences = computeDifferences(expected, actual, active);
+  const renames: PlanDifference[] = [];
+
+  // A single misspelled function name cascades into missing/extra function plus
+  // missing/extra calls. Try treating each extra function as a missing one; if most
+  // of the related differences disappear, report one rename difference instead.
+  if (active.has('functions')) {
+    let current = actual;
+    for (;;) {
+      const expectedNames = new Set(expected.functions.map((f) => asString(f.name)).filter(Boolean));
+      const actualNames = new Set(current.functions.map((f) => asString(f.name)).filter(Boolean));
+      const missing = [...expectedNames].filter((n) => !actualNames.has(n));
+      const extra = [...actualNames].filter((n) => !expectedNames.has(n));
+      let best: { m: string; e: string; model: PlannerModel; diffs: PlanDifference[]; saved: number } | null =
+        null;
+      for (const m of missing) {
+        for (const e of extra) {
+          const model = renameFunction(current, e, m);
+          const diffs = computeDifferences(expected, model, active);
+          const before = differences.filter((d) => touchesName(d, m) || touchesName(d, e)).length;
+          const after = diffs.filter((d) => touchesName(d, m) || touchesName(d, e)).length;
+          // "Most errors disappear": at least half of the related differences go away.
+          if (before >= 2 && after * 2 <= before) {
+            const saved = before - after;
+            if (!best || saved > best.saved) {
+              best = { m, e, model, diffs, saved };
+            }
+          }
+        }
+      }
+      if (!best) {
+        break;
+      }
+      renames.push({
+        category: 'functions',
+        severity: 'major',
+        function: best.m,
+        message: `Function "${best.e}" looks like a misnamed "${best.m}" (${best.saved} related differences collapsed).`,
+        expected: best.m,
+        actual: best.e,
+        collapsed: best.saved
+      });
+      current = best.model;
+      differences = best.diffs;
+    }
+  }
+
+  return {
+    compare,
+    expected: { functionCount: expected.functions.length },
+    actual: { functionCount: actual.functions.length },
+    differences: [...renames, ...differences]
+  };
+}
+
+function renameFunction(model: PlannerModel, from: string, to: string): PlannerModel {
+  return {
+    ...model,
+    functions: model.functions.map((f) => (asString(f.name) === from ? { ...f, name: to } : f))
+  };
+}
+
+function touchesName(d: PlanDifference, name: string): boolean {
+  if (d.function === name) {
+    return true;
+  }
+  if (d.category === 'calls') {
+    const edge = asString(d.expected ?? d.actual);
+    return edge.split('->').includes(name);
+  }
+  return false;
+}
+
+function computeDifferences(
+  expected: PlannerModel,
+  actual: PlannerModel,
+  active: Set<DiffCategory>
+): PlanDifference[] {
   const differences: PlanDifference[] = [];
 
   const expectedByName = indexByName(expected.functions);
@@ -252,12 +333,7 @@ export function comparePlans(
     }
   }
 
-  return {
-    compare,
-    expected: { functionCount: expected.functions.length },
-    actual: { functionCount: actual.functions.length },
-    differences
-  };
+  return differences;
 }
 
 function normalizeCompare(compare: CompareCategory[] | undefined): CompareCategory[] {

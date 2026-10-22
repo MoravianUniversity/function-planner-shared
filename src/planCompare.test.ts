@@ -67,7 +67,14 @@ describe('comparePlans', () => {
     const actual: PlannerModel = {
       functions: [
         { key: '0', name: 'main', params: [], returns: [], io: 'none', testable: false },
-        { key: '1', name: 'extra', params: [], returns: [], io: 'none', testable: false }
+        {
+          key: '1',
+          name: 'extra',
+          params: [{ name: 'q', type: '', desc: '' }],
+          returns: [],
+          io: 'input',
+          testable: false
+        }
       ],
       calls: []
     };
@@ -77,6 +84,28 @@ describe('comparePlans', () => {
     expect(cats).toContain('calls');
     expect(report.differences.some((d) => d.message.includes('helper'))).toBe(true);
     expect(report.differences.some((d) => d.message.includes('extra'))).toBe(true);
+  });
+
+  it('collapses a misspelled function name into one rename difference', () => {
+    const actual: PlannerModel = {
+      functions: [
+        { key: '0', name: 'main', params: [], returns: [], io: 'none', testable: false },
+        {
+          key: '1',
+          name: 'helpr',
+          params: [{ name: 'x', type: 'int', desc: '' }],
+          returns: [{ type: 'int', desc: '' }],
+          io: 'none',
+          testable: true
+        }
+      ],
+      calls: [{ from: '0', to: '1' }]
+    };
+    const report = comparePlans(expected, actual, { compare: ['structural'] });
+    expect(report.differences).toHaveLength(1);
+    expect(report.differences[0].message).toContain('helpr');
+    expect(report.differences[0].message).toContain('helper');
+    expect(report.differences[0].collapsed).toBeGreaterThanOrEqual(3);
   });
 
   it('reports type mismatches only when types is requested', () => {
