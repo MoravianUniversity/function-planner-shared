@@ -155,6 +155,28 @@ def split(s: str) -> tuple[str, str]:
     ]);
   });
 
+  it('does not treat prose after a NumPy "Returns / None" as returns', () => {
+    const model = pythonCodeToModel(`
+def show(x: int):
+    """Show.
+
+    Parameters
+    ----------
+    x : int
+        a value
+
+    Returns
+    -------
+    None
+
+    Prints the value, e.g.:
+    The value is: 3
+    """
+    print(x)
+`);
+    expect(model.functions[0].returns).toEqual([]);
+  });
+
   it('merges Sphinx :return: and :rtype: (and param/type)', () => {
     const model = pythonCodeToModel(`
 def helper(x):

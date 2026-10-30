@@ -202,7 +202,7 @@ function computeDifferences(
           category: 'returns',
           severity: 'major',
           function: name,
-          message: `Return count differs for "${name}".`,
+          message: `Return count differs for "${name}": the plan has ${expReturns} (${describeReturns(expFn)}) but the code has ${actReturns} (${describeReturns(actFn)}).`,
           expected: expReturns,
           actual: actReturns
         });
@@ -217,7 +217,7 @@ function computeDifferences(
           category: 'io',
           severity: 'major',
           function: name,
-          message: `IO kind differs for "${name}".`,
+          message: `IO kind differs for "${name}": the plan says "${expIo}" but the code appears to be "${actIo}".`,
           expected: expIo,
           actual: actIo
         });
@@ -398,6 +398,14 @@ function returnCount(fn: PlannerFunction): number {
   // Empty type+desc often means "no meaningful return" in planner templates
   const meaningful = returns.filter((r) => asString(r.type) || asString(r.desc));
   return meaningful.length > 0 ? meaningful.length : returns.length > 0 ? returns.length : 0;
+}
+
+function describeReturns(fn: PlannerFunction): string {
+  const returns = asReturnList(fn.returns);
+  if (returns.length === 0) {
+    return 'none';
+  }
+  return returns.map((r) => asString(r.type) || (asString(r.desc) ? '(no type)' : '(blank entry)')).join(', ');
 }
 
 function sameStringList(a: string[], b: string[]): boolean {

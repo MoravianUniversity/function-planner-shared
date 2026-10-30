@@ -437,6 +437,11 @@ function parseNumpyDocstring(lines: string[]): ParsedDocstring {
           currentReturn = { type: trimmed, desc: '' };
         }
         returns.push(currentReturn);
+        if (isNoneTypeString(currentReturn.type || '')) {
+          // "Returns / None" means nothing is returned; later unindented prose is not a return.
+          section = '';
+          currentReturn = null;
+        }
       } else if (currentReturn) {
         currentReturn.desc = `${currentReturn.desc || ''} ${trimmed.trim()}`.trim();
       }
