@@ -110,6 +110,13 @@ function mergeParamEntry(baseP: ParamEntry | undefined, solP: ParamEntry | undef
       merged.desc = base.desc;
     }
   }
+  if (paramFacetLocked(locks, nameForMatch, 'default')) {
+    if ('default' in base) {
+      merged.default = base.default;
+    } else {
+      delete merged.default;
+    }
+  }
   return merged;
 }
 

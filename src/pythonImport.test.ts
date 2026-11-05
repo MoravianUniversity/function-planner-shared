@@ -196,4 +196,31 @@ def helper(x):
       expect.objectContaining({ type: 'int', desc: 'doubled value' })
     ]);
   });
+
+  it('normalizes Optional and Union annotations to PEP 604 form', () => {
+    const model = pythonCodeToModel(`
+from typing import Optional, Union
+
+def f(a: Optional[int], b: int | None, c: Union[int, str]) -> Optional[str]:
+    return None
+`);
+    const fn = model.functions[0];
+    expect(fn.params).toEqual([
+      expect.objectContaining({ name: 'a', type: 'int|None' }),
+      expect.objectContaining({ name: 'b', type: 'int|None' }),
+      expect.objectContaining({ name: 'c', type: 'int|str' })
+    ]);
+    expect(fn.returns).toEqual([expect.objectContaining({ type: 'str|None' })]);
+  });
+
+  it('captures parameter default values', () => {
+    const model = pythonCodeToModel(`
+def greet(name: str = "world", count: int = 1) -> str:
+    return name * count
+`);
+    expect(model.functions[0].params).toEqual([
+      expect.objectContaining({ name: 'name', type: 'str', default: '"world"' }),
+      expect.objectContaining({ name: 'count', type: 'int', default: '1' })
+    ]);
+  });
 });

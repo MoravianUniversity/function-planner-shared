@@ -38,7 +38,7 @@ export const functionReadOnlyFieldValues = [
 export type FunctionReadOnlyField = (typeof functionReadOnlyFieldValues)[number];
 
 /** Facets for param list locking (structure = cannot add/remove/reorder). */
-export const paramFacetValues = ['structure', 'name', 'type', 'desc'] as const;
+export const paramFacetValues = ['structure', 'name', 'type', 'desc', 'default'] as const;
 export type ParamFacet = (typeof paramFacetValues)[number];
 
 /** Facets for return list locking (no name; returns are unnamed). */
@@ -111,6 +111,12 @@ export const planConfigSchema = z.object({
   showCodeFor: z.string().optional(),
   /** Regex matched against function names; empty = show for none. */
   showTestCodeFor: z.string().optional(),
+  /** Allow marking params/returns optional (`T|None`) via the advanced menu. */
+  allowOptionalTypes: z.boolean().optional(),
+  /** Allow editing union types (`A|B`) in the type editor. */
+  allowUnionTypes: z.boolean().optional(),
+  /** Allow param default values via the advanced menu. */
+  allowParamDefaults: z.boolean().optional(),
   moduleReadOnly: z
     .union([z.boolean(), z.array(z.enum(moduleReadOnlyFieldValues))])
     .optional(),
@@ -147,6 +153,9 @@ export type PlanConfig = {
   showTestGlobalCode: boolean;
   showCodeFor: string;
   showTestCodeFor: string;
+  allowOptionalTypes: boolean;
+  allowUnionTypes: boolean;
+  allowParamDefaults: boolean;
   moduleReadOnly: ModuleReadOnly;
   functionReadOnly: FunctionReadOnlyRule[];
 };
@@ -172,6 +181,9 @@ export const DEFAULT_PLAN_CONFIG: PlanConfig = {
   showTestGlobalCode: false,
   showCodeFor: '',
   showTestCodeFor: '',
+  allowOptionalTypes: false,
+  allowUnionTypes: false,
+  allowParamDefaults: false,
   moduleReadOnly: false,
   functionReadOnly: []
 };
@@ -658,6 +670,18 @@ export function parsePlanConfig(raw: unknown): PlanConfig {
         : DEFAULT_PLAN_CONFIG.showTestGlobalCode,
     showCodeFor: toPatternString(value.showCodeFor, DEFAULT_PLAN_CONFIG.showCodeFor),
     showTestCodeFor: toPatternString(value.showTestCodeFor, DEFAULT_PLAN_CONFIG.showTestCodeFor),
+    allowOptionalTypes:
+      typeof value.allowOptionalTypes === 'boolean'
+        ? value.allowOptionalTypes
+        : DEFAULT_PLAN_CONFIG.allowOptionalTypes,
+    allowUnionTypes:
+      typeof value.allowUnionTypes === 'boolean'
+        ? value.allowUnionTypes
+        : DEFAULT_PLAN_CONFIG.allowUnionTypes,
+    allowParamDefaults:
+      typeof value.allowParamDefaults === 'boolean'
+        ? value.allowParamDefaults
+        : DEFAULT_PLAN_CONFIG.allowParamDefaults,
     moduleReadOnly: parseModuleReadOnly(value.moduleReadOnly, DEFAULT_PLAN_CONFIG.moduleReadOnly),
     functionReadOnly: parseFunctionReadOnly(value.functionReadOnly, DEFAULT_PLAN_CONFIG.functionReadOnly)
   };

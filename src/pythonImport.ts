@@ -3,9 +3,10 @@
  *
  * Intentional limits (planner does not use the omitted info yet):
  * - Only top-level functions (no nested / async / class methods)
- * - Positional-only / keyword-only / *args / **kwargs not distinguished; defaults ignored
+ * - Positional-only / keyword-only / *args / **kwargs not distinguished (defaults are captured)
  * - Direct I/O via input()/print() (+ try/while as validation); comment overrides
  * - Call edges from Name/Attribute callees among top-level functions, plus `# Calls` body comments
+ * - Optional[T] / Union[A,B] annotations normalize to PEP 604 (`T|None`, `A|B`)
  *
  * Note: pass a pytest-style tests file via options.tests (or applyPythonTestsToModel)
  * to set testable / testCode / testDocumentation / testGlobalCode. Without tests,
@@ -26,6 +27,7 @@ import {
 } from 'py-ast';
 import { applyPythonTestsToModel } from './pythonTests.js';
 import type { PlannerCall, PlannerFunction, PlannerModel } from './solutionMerge.js';
+import { normalizeTypeAnnotationString, withOptional } from './typeNormalize.js';
 
 export type PythonImportOptions = {
   /** Optional pytest-style tests source used to mark testable functions. */
@@ -41,7 +43,7 @@ type ParsedDocstring = {
   docReturns: DocReturn[];
 };
 
-type ParamEntry = { name: string; type: string; desc: string };
+type ParamEntry = { name: string; type: string; desc: string; default?: string };
 type ReturnEntry = { type: string; desc: string };
 
 type FunctionBuild = PlannerFunction & {
@@ -84,18 +86,6 @@ export function pythonCodeToModel(code: string, options: PythonImportOptions = {
     // when getFunctionCode returns '' for trivial pass/dummy-return functions.
     const funcSourceLines = sourceLines.slice(node.lineno - 1, funcEndLine - 1);
 
-    const args: Arg[] = [
-      ...(node.args?.posonlyargs || []),
-      ...(node.args?.args || []),
-      ...(node.args?.kwonlyargs || [])
-    ];
-    if (node.args?.vararg) {
-      args.push(node.args.vararg);
-    }
-    if (node.args?.kwarg) {
-      args.push(node.args.kwarg);
-    }
-
     const called = calledFunctionNames(node, functionNames);
     for (const name of commentedCallTargets(funcSourceLines, functionNames)) {
       called.add(name);
@@ -106,7 +96,7 @@ export function pythonCodeToModel(code: string, options: PythonImportOptions = {
       name: node.name,
       desc,
       code: codeBody,
-      params: extractParamTypes(args, docParams),
+      params: extractParamTypes(node.args, docParams),
       returns: removeObjectType(extractReturnTypes(node.returns ?? null, docReturns)),
       io: inferDirectIO(node, funcSourceLines),
       _callsByName: Array.from(called),
@@ -692,12 +682,84 @@ function isMainGuard(stmt: StmtNode): boolean {
   );
 }
 
-function extractParamTypes(args: Arg[], docParams: Map<string, DocParam>): ParamEntry[] {
-  return args.map((arg) => ({
-    name: arg.arg,
-    type: getType(arg.annotation ?? null, docParams.get(arg.arg)?.type),
-    desc: docParams.get(arg.arg)?.desc || ''
-  }));
+function extractParamTypes(
+  argumentsNode: FunctionDef['args'] | undefined,
+  docParams: Map<string, DocParam>
+): ParamEntry[] {
+  if (!argumentsNode) {
+    return [];
+  }
+  const positional: Arg[] = [
+    ...(argumentsNode.posonlyargs || []),
+    ...(argumentsNode.args || [])
+  ];
+  const kwonly: Arg[] = [...(argumentsNode.kwonlyargs || [])];
+  const defaults = argumentsNode.defaults || [];
+  const kwDefaults = argumentsNode.kw_defaults || [];
+
+  const positionalDefaults: (string | undefined)[] = positional.map(() => undefined);
+  const defaultOffset = positional.length - defaults.length;
+  for (let i = 0; i < defaults.length; i++) {
+    positionalDefaults[defaultOffset + i] = exprToSource(defaults[i]);
+  }
+
+  const entries: ParamEntry[] = positional.map((arg, index) => {
+    const entry: ParamEntry = {
+      name: arg.arg,
+      type: getType(arg.annotation ?? null, docParams.get(arg.arg)?.type),
+      desc: docParams.get(arg.arg)?.desc || ''
+    };
+    const def = positionalDefaults[index];
+    if (def) {
+      entry.default = def;
+    }
+    return entry;
+  });
+
+  for (let i = 0; i < kwonly.length; i++) {
+    const arg = kwonly[i];
+    const entry: ParamEntry = {
+      name: arg.arg,
+      type: getType(arg.annotation ?? null, docParams.get(arg.arg)?.type),
+      desc: docParams.get(arg.arg)?.desc || ''
+    };
+    const defNode = kwDefaults[i];
+    if (defNode) {
+      const def = exprToSource(defNode);
+      if (def) {
+        entry.default = def;
+      }
+    }
+    entries.push(entry);
+  }
+
+  if (argumentsNode.vararg) {
+    entries.push({
+      name: argumentsNode.vararg.arg,
+      type: getType(argumentsNode.vararg.annotation ?? null, docParams.get(argumentsNode.vararg.arg)?.type),
+      desc: docParams.get(argumentsNode.vararg.arg)?.desc || ''
+    });
+  }
+  if (argumentsNode.kwarg) {
+    entries.push({
+      name: argumentsNode.kwarg.arg,
+      type: getType(argumentsNode.kwarg.annotation ?? null, docParams.get(argumentsNode.kwarg.arg)?.type),
+      desc: docParams.get(argumentsNode.kwarg.arg)?.desc || ''
+    });
+  }
+
+  return entries;
+}
+
+function exprToSource(node: ExprNode | null | undefined): string {
+  if (!node) {
+    return '';
+  }
+  try {
+    return unparse(node).trim();
+  } catch {
+    return '';
+  }
 }
 
 function isEllipsisConstant(elt: ExprNode): boolean {
@@ -776,8 +838,7 @@ function getType(annotation: ExprNode | null, docType: string | undefined): stri
 }
 
 function parseWrittenType(typeStr: string): string {
-  // TODO: optionally run through the UI type parser; treat as raw annotation for now
-  return normalizeString(typeStr);
+  return normalizeTypeAnnotationString(normalizeString(typeStr).replace(/\s+/g, ''));
 }
 
 function annotationToType(annotation: ExprNode | null | undefined): string {
@@ -785,10 +846,57 @@ function annotationToType(annotation: ExprNode | null | undefined): string {
     return '';
   }
   try {
-    return normalizeString(unparse(annotation));
+    return normalizeTypeAst(annotation);
   } catch {
+    try {
+      return normalizeTypeAnnotationString(normalizeString(unparse(annotation)).replace(/\s+/g, ''));
+    } catch {
+      return '';
+    }
+  }
+}
+
+/** Prefer PEP 604 form; expand Optional/Union from the AST when possible. */
+function normalizeTypeAst(node: ExprNode): string {
+  if (node.nodeType === 'BinOp' && node.op?.nodeType === 'BitOr') {
+    const left = normalizeTypeAst(node.left);
+    const right = normalizeTypeAst(node.right);
+    return [left, right].filter(Boolean).join('|');
+  }
+  if (node.nodeType === 'Subscript') {
+    const base = typeBaseName(node.value);
+    if (base === 'Optional') {
+      const inner = sliceElements(node.slice).map(normalizeTypeAst).filter(Boolean);
+      return withOptional(inner[0] || '');
+    }
+    if (base === 'Union') {
+      return sliceElements(node.slice).map(normalizeTypeAst).filter(Boolean).join('|');
+    }
+  }
+  return normalizeTypeAnnotationString(normalizeString(unparse(node)).replace(/\s+/g, ''));
+}
+
+function typeBaseName(node: ExprNode | undefined): string {
+  if (!node) {
     return '';
   }
+  if (node.nodeType === 'Name') {
+    return node.id || '';
+  }
+  if (node.nodeType === 'Attribute' && node.attr) {
+    return node.attr;
+  }
+  return '';
+}
+
+function sliceElements(slice: ExprNode | undefined): ExprNode[] {
+  if (!slice) {
+    return [];
+  }
+  if (slice.nodeType === 'Tuple') {
+    return slice.elts || [];
+  }
+  return [slice];
 }
 
 function normalizeString(text: string): string {

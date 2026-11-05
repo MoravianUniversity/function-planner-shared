@@ -37,7 +37,7 @@ export type PlanCompareReport = {
   differences: PlanDifference[];
 };
 
-type ParamLike = { name?: string; type?: string; desc?: string };
+type ParamLike = { name?: string; type?: string; desc?: string; default?: string };
 type ReturnLike = { type?: string; desc?: string };
 
 const STRUCTURAL_CHECKS: DiffCategory[] = [

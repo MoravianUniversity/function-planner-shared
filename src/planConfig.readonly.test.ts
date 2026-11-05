@@ -57,7 +57,7 @@ describe('parseFunctionReadOnly / compactFunctionReadOnlyRule', () => {
     const rule = compactFunctionReadOnlyRule({
       for: '.*',
       fields: ['params'],
-      paramLock: { facets: ['structure', 'name', 'type', 'desc'] }
+      paramLock: { facets: ['structure', 'name', 'type', 'desc', 'default'] }
     });
     expect(rule).toEqual({ for: '.*', fields: ['params'] });
   });
@@ -70,7 +70,7 @@ describe('resolveFunctionReadOnly', () => {
     ]);
     expect(policy).toEqual({
       fields: ['name'],
-      params: [{ for: '.*', facets: ['structure', 'name', 'type', 'desc'] }],
+      params: [{ for: '.*', facets: ['structure', 'name', 'type', 'desc', 'default'] }],
       returns: []
     });
     expect(isFunctionFieldLocked('params', policy)).toBe(true);

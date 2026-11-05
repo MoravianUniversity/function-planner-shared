@@ -1,5 +1,6 @@
 import type { PlanConfig } from './planConfig.js';
 import type { PlannerFunction, PlannerModel } from './solutionMerge.js';
+import { hasConcreteType } from './typeNormalize.js';
 
 export type ProblemSeverity = 'error' | 'warning';
 
@@ -539,7 +540,7 @@ function funcProblems(
         });
       }
       names.push(asString(param.name));
-      if (!param.type) {
+      if (!hasConcreteType(asString(param.type))) {
         problems.push({
           severity: 'error',
           field: `params[${i}].type`,
@@ -562,7 +563,7 @@ function funcProblems(
     }
     for (let i = 0; i < returns.length; i++) {
       const ret = returns[i];
-      if (!ret.type) {
+      if (!hasConcreteType(asString(ret.type))) {
         problems.push({
           severity: 'error',
           field: `returns[${i}].type`,
