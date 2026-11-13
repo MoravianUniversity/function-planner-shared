@@ -117,6 +117,8 @@ export const planConfigSchema = z.object({
   allowUnionTypes: z.boolean().optional(),
   /** Allow param default values via the advanced menu. */
   allowParamDefaults: z.boolean().optional(),
+  /** When true, warn if main has direct I/O (not none/indirect). */
+  mainShouldNotHaveIO: z.boolean().optional(),
   moduleReadOnly: z
     .union([z.boolean(), z.array(z.enum(moduleReadOnlyFieldValues))])
     .optional(),
@@ -156,6 +158,7 @@ export type PlanConfig = {
   allowOptionalTypes: boolean;
   allowUnionTypes: boolean;
   allowParamDefaults: boolean;
+  mainShouldNotHaveIO: boolean;
   moduleReadOnly: ModuleReadOnly;
   functionReadOnly: FunctionReadOnlyRule[];
 };
@@ -184,6 +187,7 @@ export const DEFAULT_PLAN_CONFIG: PlanConfig = {
   allowOptionalTypes: false,
   allowUnionTypes: false,
   allowParamDefaults: false,
+  mainShouldNotHaveIO: true,
   moduleReadOnly: false,
   functionReadOnly: []
 };
@@ -682,6 +686,10 @@ export function parsePlanConfig(raw: unknown): PlanConfig {
       typeof value.allowParamDefaults === 'boolean'
         ? value.allowParamDefaults
         : DEFAULT_PLAN_CONFIG.allowParamDefaults,
+    mainShouldNotHaveIO:
+      typeof value.mainShouldNotHaveIO === 'boolean'
+        ? value.mainShouldNotHaveIO
+        : DEFAULT_PLAN_CONFIG.mainShouldNotHaveIO,
     moduleReadOnly: parseModuleReadOnly(value.moduleReadOnly, DEFAULT_PLAN_CONFIG.moduleReadOnly),
     functionReadOnly: parseFunctionReadOnly(value.functionReadOnly, DEFAULT_PLAN_CONFIG.functionReadOnly)
   };

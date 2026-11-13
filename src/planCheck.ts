@@ -54,6 +54,8 @@ export type PlanCheckOptions = {
   maxInputFuncs?: number;
   minOutputFuncs?: number;
   maxOutputFuncs?: number;
+  /** When true (default), warn if main has direct I/O. */
+  mainShouldNotHaveIO?: boolean;
 };
 
 const PYTHON_KEYWORDS = new Set([
@@ -403,10 +405,15 @@ function funcLinkProblems(index: Index, key: string): Problem[] {
   return problems;
 }
 
-function funcIOProblems(index: Index, key: string, func: PlannerFunction): Problem[] {
+function funcIOProblems(
+  index: Index,
+  key: string,
+  func: PlannerFunction,
+  options: PlanCheckOptions = {}
+): Problem[] {
   const problems: Problem[] = [];
   const io = asString(func.io || 'none');
-  if (asString(func.name).trim() === 'main') {
+  if (asString(func.name).trim() === 'main' && (options.mainShouldNotHaveIO ?? true)) {
     if (!['none', 'indirect'].includes(io)) {
       problems.push({
         severity: 'warning',
@@ -607,7 +614,7 @@ function funcProblems(
       message: 'Function owner must be one of the module authors.'
     });
   }
-  problems.push(...funcIOProblems(index, key, func));
+  problems.push(...funcIOProblems(index, key, func, options));
   return problems;
 }
 
@@ -743,6 +750,7 @@ export function planCheckOptionsFromConfig(
     | 'minReturnDescLength'
     | 'minFunctions'
     | 'minTestable'
+    | 'mainShouldNotHaveIO'
   >,
   extras: Pick<PlanCheckOptions, 'adminMode' | 'externalAuthors' | 'maxFunctions' | 'maxTestable' | 'minInputFuncs' | 'maxInputFuncs' | 'minOutputFuncs' | 'maxOutputFuncs'> = {}
 ): PlanCheckOptions {
@@ -755,6 +763,7 @@ export function planCheckOptionsFromConfig(
     minReturnDescLength: config.minReturnDescLength,
     minFunctions: config.minFunctions,
     minTestable: config.minTestable,
+    mainShouldNotHaveIO: config.mainShouldNotHaveIO,
     adminMode: extras.adminMode ?? false,
     externalAuthors: extras.externalAuthors ?? null,
     maxFunctions: extras.maxFunctions,

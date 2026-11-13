@@ -23,3 +23,14 @@ describe('advanced type plan config flags', () => {
     expect(parsed.allowParamDefaults).toBe(true);
   });
 });
+
+describe('mainShouldNotHaveIO plan config', () => {
+  it('defaults to true', () => {
+    expect(DEFAULT_PLAN_CONFIG.mainShouldNotHaveIO).toBe(true);
+    expect(parsePlanConfig({}).mainShouldNotHaveIO).toBe(true);
+  });
+
+  it('parses false from settings', () => {
+    expect(parsePlanConfig({ mainShouldNotHaveIO: false }).mainShouldNotHaveIO).toBe(false);
+  });
+});

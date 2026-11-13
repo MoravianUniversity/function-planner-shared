@@ -96,4 +96,38 @@ describe('checkPlan', () => {
     expect(report.model.some((p) => p.field === 'documentation')).toBe(false);
     expect(report.model.some((p) => p.field === 'authors')).toBe(false);
   });
+
+  it('warns when main has direct I/O by default', () => {
+    const model: PlannerModel = {
+      functions: [{ key: '1', name: 'main', io: 'output' }],
+      calls: [],
+      documentation: 'Module documentation that is long enough for the checker.',
+      authors: ['Alice']
+    };
+    const report = checkPlan(model, { externalAuthors: null, minFunctions: 1 });
+    expect(
+      report.functions['1']?.problems.some(
+        (p) => p.field === 'io' && p.message.includes('direct user input or output')
+      )
+    ).toBe(true);
+  });
+
+  it('skips main direct I/O warning when mainShouldNotHaveIO is false', () => {
+    const model: PlannerModel = {
+      functions: [{ key: '1', name: 'main', io: 'output' }],
+      calls: [],
+      documentation: 'Module documentation that is long enough for the checker.',
+      authors: ['Alice']
+    };
+    const report = checkPlan(model, {
+      externalAuthors: null,
+      minFunctions: 1,
+      mainShouldNotHaveIO: false
+    });
+    expect(
+      report.functions['1']?.problems.some(
+        (p) => p.field === 'io' && p.message.includes('direct user input or output')
+      )
+    ).toBe(false);
+  });
 });
